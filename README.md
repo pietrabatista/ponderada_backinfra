@@ -6,12 +6,7 @@ Este projeto implementa um backend de telemetria com arquitetura desacoplada. O 
 
 ## Por que TypeScript?
 
-O enunciado pedia o backend em GoLang, porém optei por TypeScript pelos seguintes motivos:
-
-- **Familiaridade**: maior domínio da linguagem, permitindo foco na arquitetura ao invés da sintaxe
-- **Ecossistema**: npm possui bibliotecas maduras para RabbitMQ (`amqplib`) e PostgreSQL (`pg`)
-- **Tipagem estática**: TypeScript adiciona segurança de tipos ao JavaScript, prevenindo erros em tempo de compilação
-- **Produtividade**: ferramentas como `ts-node-dev` aceleram o ciclo de desenvolvimento
+O enunciado pedia o backend em GoLang, porém optei por TypeScript pois quero aprofundar meus conhecimentos em TypeScript. Acredito que será importante para a minha trajetória profissional.
 
 ## Arquitetura
 ```
@@ -150,6 +145,17 @@ npm test
 cd middleware
 npm test
 ```
+### O que é testado
+
+**Backend (4 testes):**
+- POST /telemetry retorna 201 ao receber leitura analógica
+- POST /telemetry retorna 201 ao receber leitura discreta
+- POST /telemetry chama o publisher com os dados corretos
+- Publisher publica mensagem na fila do RabbitMQ
+
+**Middleware (2 testes):**
+- Consumer consome mensagem e insere no banco
+- insertTelemetry insere dados corretamente no banco
 
 ## Teste de Carga
 ```bash
