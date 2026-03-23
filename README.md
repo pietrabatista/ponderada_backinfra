@@ -16,7 +16,7 @@ O enunciado pedia o backend em GoLang, porém optei por TypeScript pois quero ap
 O processamento é **assíncrono e desacoplado**:
 - O backend recebe a requisição e publica na fila imediatamente
 - O middleware consome a fila e persiste no banco de forma independente
-- Isso evita gargalos e garante que nenhum dado seja perdido em picos de carga
+- Isso reduz gargalos e aumenta a confiabilidade, permitindo absorver picos de carga sem perda de dados, desde que a infraestrutura esteja corretamente configurada
 
 ## Serviços
 
@@ -63,7 +63,7 @@ ponderada_backinfra/
 ## Decisões de Projeto
 
 ### Mensageria com RabbitMQ
-O RabbitMQ foi escolhido como broker de mensageria por ser amplamente adotado, ter suporte nativo a filas duráveis e oferecer um painel de gerenciamento visual. A fila `telemetry` é configurada como `durable: true` e as mensagens como `persistent: true`, garantindo que nenhuma mensagem seja perdida mesmo em caso de reinicialização do broker.
+O RabbitMQ foi escolhido como broker de mensageria por ser amplamente adotado, ter suporte nativo a filas duráveis e oferecer um painel de gerenciamento visual. A fila `telemetry` é configurada como `durable: true` e as mensagens como `persistent: true`, aumentando a confiabilidade e reduzindo o risco de perda de mensagens, mesmo em caso de reinicialização do broker.
 
 ### Banco de dados PostgreSQL
 O PostgreSQL foi escolhido por ser um banco relacional robusto, com suporte a tipos de dados como `TIMESTAMPTZ` e `NUMERIC`, adequados para dados de telemetria. O modelo foi projetado para suportar diferentes tipos de sensores (`sensor_type`) e naturezas de leitura (`reading_type`: analógica ou discreta).
@@ -72,13 +72,13 @@ O PostgreSQL foi escolhido por ser um banco relacional robusto, com suporte a ti
 O backend e o middleware são serviços independentes. O backend só conhece o RabbitMQ, o middleware só conhece o RabbitMQ e o PostgreSQL. Isso permite escalar cada serviço de forma independente.
 
 ### Inicialização do banco
-A tabela `telemetry` é criada via `init.sql` na pasta `db/`, executado automaticamente pelo PostgreSQL na primeira inicialização. Isso garante que a tabela exista antes de qualquer serviço tentar usá-la.
+A tabela `telemetry` é criada via `init.sql` na pasta `db/`, executado automaticamente na inicialização do container do PostgreSQL. Isso garante que a tabela exista antes de qualquer serviço tentar usá-la.
 
 ### Limites de recursos
-Todos os containers têm limites de CPU (0.5) e memória (256MB) definidos no `compose.yml`. Isso garante reprodutibilidade nos testes de carga, já que o ambiente sempre tem os mesmos recursos disponíveis.
+Todos os containers têm limites de CPU (0.5) e memória (256MB) definidos no `compose.yml`. Isso permite controlar o consumo de CPU e memória de cada serviço, além de tornar os testes de carga mais consistentes e comparáveis, simulando cenários mais próximos de ambientes reais com recursos limitados.
 
 ### Healthcheck
-O RabbitMQ possui um healthcheck configurado (`rabbitmq-diagnostics ping`). O backend e o middleware só sobem após o RabbitMQ estar saudável, evitando erros de conexão durante a inicialização.
+O backend e o middleware dependem do RabbitMQ via `depends_on` com condição de healthcheck, garantindo que só iniciem após o broker estar saudável.
 
 ## Modelo de Dados
 ```sql
@@ -166,11 +166,30 @@ k6 run loadtest/load-test.js
 
 | Métrica | Valor |
 |---------|-------|
-| Total de requisições | 2399 |
-| Throughput | 19.88 req/s |
+| Total de requisições | 2697  |
+| Throughput | 22.35 req/s |
 | Taxa de erro | 0.00% |
-| Latência média | 130.46ms |
-| Latência p(95) | 244.8ms |
+| Latência média | 3.7ms |
+| Latência p(95) | 7.96ms |
 | Checks aprovados | 100% |
 
 Consulte a análise completa em `loadtest/relatorio.md`.
+
+---
+
+## Otimização de Performance
+
+Durante o desenvolvimento, foi identificado um gargalo no backend relacionado à criação de conexões com o RabbitMQ a cada requisição.
+
+Inicialmente, o sistema abria e fechava uma nova conexão para cada mensagem publicada, o que gerava overhead significativo e aumentava a latência.
+
+Após a identificação do problema, foi implementada uma conexão persistente com o RabbitMQ, reutilizada entre as requisições.
+
+### Impacto da otimização
+
+| Métrica | Antes | Depois |
+|--------|------|--------|
+| Latência média | ~130ms | ~3.7ms |
+| Latência p95 | ~244ms | ~7.96ms |
+
+Essa melhoria reduziu o tempo de resposta e aumentou a eficiência do sistema, evidenciando a importância de evitar overhead desnecessário em sistemas distribuídos.

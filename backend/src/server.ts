@@ -9,10 +9,16 @@ app.get('/', (req: Request, res: Response) => {
     res.send('RODANDOOO!');
 });
 
-app.post('/telemetry', async (req: Request, res: Response) => {
-    const data = req.body;
-    await publishToQueue(data);
-    res.status(201).json({ message: 'Dados recebidos com sucesso!' });
+app.post('/telemetry', async (req, res) => {
+    try {
+        const data = req.body;
+        await publishToQueue(data);
+
+        res.status(201).json({ message: 'Dados recebidos com sucesso!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Erro ao processar dados' });
+    }
 });
 
 export default app;
